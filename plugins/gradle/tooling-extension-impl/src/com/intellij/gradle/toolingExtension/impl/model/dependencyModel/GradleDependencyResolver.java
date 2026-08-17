@@ -169,11 +169,16 @@ public final class GradleDependencyResolver {
     Set<ResolvedArtifactResult> configurationDependencies =
       artifactCollection == null ? Collections.emptySet() : artifactCollection.getArtifacts();
 
+    Collection<ExternalDependency> result;
     if (artifactCollection != null && canUseModernResolver(configurationDependencies, configuration)) {
       ResolutionResult resolutionResult = configuration.getIncoming().getResolutionResult();
-      return resolveDependenciesModern(configuration, artifactCollection, resolutionResult, allowedDependencyGroups);
+      result = resolveDependenciesModern(configuration, artifactCollection, resolutionResult, allowedDependencyGroups);
     }
-    return resolveDependenciesLegacy(configuration, configurationDependencies, allowedDependencyGroups);
+    else {
+      result = resolveDependenciesLegacy(configuration, configurationDependencies, allowedDependencyGroups);
+    }
+    GradleDependencyModelDumper.dump(myProject, configuration, result);
+    return result;
   }
 
   /**
