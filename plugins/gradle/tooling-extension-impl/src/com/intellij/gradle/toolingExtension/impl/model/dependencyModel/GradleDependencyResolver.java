@@ -205,6 +205,7 @@ public final class GradleDependencyResolver {
     for (ExternalDependency dependency : result) {
       ((AbstractExternalDependency)dependency).setClasspathOrder(++order);
     }
+    GradleDependencyModelDumper.dump(myProject, configuration, result);
     return result;
   }
 
