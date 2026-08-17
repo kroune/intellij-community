@@ -59,8 +59,10 @@ import org.jetbrains.plugins.gradle.tooling.ModelBuilderContext;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -237,15 +239,48 @@ public final class GradleDependencyResolver {
     @NotNull AuxiliaryConfigurationArtifacts auxiliaryArtifacts,
     @NotNull Collection<Throwable> artifactFailures
   ) {
-    Collection<ExternalDependency> artifactDependencies = new LinkedHashSet<>();
-    Map<String, DefaultExternalProjectDependency> resolvedProjectDependencies = new HashMap<>();
-    Map<ComponentIdentifier, ResolvedComponentResult> componentsById = null; // lazy
+    Map<ComponentIdentifier, List<ResolvedArtifactResult>> artifactsByComponent = new LinkedHashMap<>();
     for (ResolvedArtifactResult artifact : resolvedArtifacts) {
       ComponentIdentifier componentIdentifier = artifact.getId().getComponentIdentifier();
+      if (componentIdentifier instanceof ProjectComponentIdentifier || componentIdentifier instanceof ModuleComponentIdentifier) {
+        artifactsByComponent.computeIfAbsent(componentIdentifier, __ -> new ArrayList<>()).add(artifact);
+      }
+    }
+
+    Collection<ExternalDependency> artifactDependencies = new LinkedHashSet<>();
+    Map<String, DefaultExternalProjectDependency> resolvedProjectDependencies = new HashMap<>();
+    Map<ComponentIdentifier, ResolvedComponentResult> componentsById = indexComponents(resolutionResult);
+
+    // Emit the dependencies in the graph traversal order, to match the order of the legacy resolution
+    for (ResolvedComponentResult component : traverseComponents(resolutionResult.getRoot())) {
+      List<ResolvedArtifactResult> artifacts = artifactsByComponent.remove(component.getId());
+      if (artifacts == null) continue;
+      resolveModernArtifacts(artifactDependencies, resolvedProjectDependencies, resolvedFiles, artifacts, componentsById, auxiliaryArtifacts);
+    }
+    // Artifacts whose component is not reachable from the resolution graph (should not normally happen)
+    for (List<ResolvedArtifactResult> artifacts : artifactsByComponent.values()) {
+      resolveModernArtifacts(artifactDependencies, resolvedProjectDependencies, resolvedFiles, artifacts, componentsById, auxiliaryArtifacts);
+    }
+
+    if (!artifactFailures.isEmpty()) {
+      artifactDependencies.addAll(
+        recoverFailedTransformProjectDependencies(resolvedProjectDependencies, resolvedArtifacts, componentsById)
+      );
+    }
+    return artifactDependencies;
+  }
+
+  private void resolveModernArtifacts(
+    @NotNull Collection<ExternalDependency> artifactDependencies, // mutable
+    @NotNull Map<String, DefaultExternalProjectDependency> resolvedProjectDependencies, // mutable
+    @NotNull Set<String> resolvedFiles, // mutable
+    @NotNull List<ResolvedArtifactResult> artifacts,
+    @NotNull Map<ComponentIdentifier, ResolvedComponentResult> componentsById,
+    @NotNull AuxiliaryConfigurationArtifacts auxiliaryArtifacts
+  ) {
+    for (ResolvedArtifactResult artifact : artifacts) {
+      ComponentIdentifier componentIdentifier = artifact.getId().getComponentIdentifier();
       if (componentIdentifier instanceof ProjectComponentIdentifier) {
-        if (componentsById == null) {
-          componentsById = indexComponents(resolutionResult);
-        }
         ExternalDependency dependency = resolveModernProjectDependency(
           resolvedProjectDependencies, resolvedFiles, artifact, (ProjectComponentIdentifier)componentIdentifier, componentsById
         );
@@ -263,15 +298,28 @@ public final class GradleDependencyResolver {
         );
       }
     }
-    if (!artifactFailures.isEmpty()) {
-      if (componentsById == null) {
-        componentsById = indexComponents(resolutionResult);
+  }
+
+  // Breadth-first traversal over the resolved graph, mirroring LenientConfiguration.getAllModuleDependencies()
+  private static @NotNull List<ResolvedComponentResult> traverseComponents(@NotNull ResolvedComponentResult root) {
+    List<ResolvedComponentResult> order = new ArrayList<>();
+    Set<ComponentIdentifier> seen = new HashSet<>();
+    Deque<ResolvedComponentResult> queue = new ArrayDeque<>();
+    seen.add(root.getId());
+    queue.add(root);
+    while (!queue.isEmpty()) {
+      ResolvedComponentResult component = queue.removeFirst();
+      for (DependencyResult dependencyResult : component.getDependencies()) {
+        if (dependencyResult instanceof ResolvedDependencyResult && !dependencyResult.isConstraint()) {
+          ResolvedComponentResult selected = ((ResolvedDependencyResult)dependencyResult).getSelected();
+          if (seen.add(selected.getId())) {
+            queue.addLast(selected);
+            order.add(selected);
+          }
+        }
       }
-      artifactDependencies.addAll(
-        recoverFailedTransformProjectDependencies(resolvedProjectDependencies, resolvedArtifacts, componentsById)
-      );
     }
-    return artifactDependencies;
+    return order;
   }
 
   private static @NotNull Map<ComponentIdentifier, ResolvedComponentResult> indexComponents(
