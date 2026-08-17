@@ -2,14 +2,9 @@
 package com.intellij.gradle.toolingExtension.impl.model.dependencyModel.auxiliary;
 
 import com.intellij.gradle.toolingExtension.impl.model.dependencyDownloadPolicyModel.GradleDependencyDownloadPolicy;
-import com.intellij.gradle.toolingExtension.impl.model.dependencyModel.DefaultModuleComponentIdentifier;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.ModuleVersionIdentifier;
-import org.gradle.api.artifacts.ResolvedArtifact;
-import org.gradle.api.artifacts.ResolvedDependency;
 import org.gradle.api.artifacts.component.ComponentIdentifier;
-import org.gradle.api.artifacts.component.ProjectComponentIdentifier;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.result.ComponentArtifactsResult;
 import org.gradle.api.artifacts.result.ResolvedArtifactResult;
@@ -35,31 +30,20 @@ public class LegacyAuxiliaryArtifactResolver implements AuxiliaryArtifactResolve
 
   private final @NotNull Project project;
   private final @NotNull GradleDependencyDownloadPolicy policy;
-  private final @NotNull Map<ResolvedDependency, Set<ResolvedArtifact>> resolvedArtifacts;
+  private final @NotNull Collection<ComponentIdentifier> components;
 
   public LegacyAuxiliaryArtifactResolver(@NotNull Project project,
                                          @NotNull GradleDependencyDownloadPolicy policy,
-                                         @NotNull Map<ResolvedDependency, Set<ResolvedArtifact>> resolvedArtifacts) {
+                                         @NotNull Collection<ComponentIdentifier> components) {
     this.project = project;
     this.policy = policy;
-    this.resolvedArtifacts = resolvedArtifacts;
+    this.components = components;
   }
 
   @Override
   public @NotNull AuxiliaryConfigurationArtifacts resolve(@NotNull Configuration configuration) {
     List<Class<? extends Artifact>> artifactTypes = getRequiredArtifactTypes();
-    if (artifactTypes.isEmpty()) {
-      return new AuxiliaryConfigurationArtifacts(Collections.emptyMap(), Collections.emptyMap());
-    }
-    List<ComponentIdentifier> components = new ArrayList<>();
-    for (Collection<ResolvedArtifact> artifacts : resolvedArtifacts.values()) {
-      for (ResolvedArtifact artifact : artifacts) {
-        if (artifact.getId().getComponentIdentifier() instanceof ProjectComponentIdentifier) continue;
-        ModuleVersionIdentifier id = artifact.getModuleVersion().getId();
-        components.add(DefaultModuleComponentIdentifier.create(id));
-      }
-    }
-    if (components.isEmpty()) {
+    if (artifactTypes.isEmpty() || components.isEmpty()) {
       return new AuxiliaryConfigurationArtifacts(Collections.emptyMap(), Collections.emptyMap());
     }
     Set<ComponentArtifactsResult> componentResults = getDependencyHandler(configuration)
