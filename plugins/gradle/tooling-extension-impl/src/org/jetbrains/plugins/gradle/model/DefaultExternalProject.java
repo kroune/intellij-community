@@ -194,9 +194,19 @@ public final class DefaultExternalProject implements ExternalProject {
     return sourceSetModel.getTaskArtifacts();
   }
 
+  /**
+   * @deprecated Always empty: per-configuration artifacts are no longer collected.
+   * Every access is logged (once per call site) to find remaining consumers.
+   */
+  @Deprecated
   @Override
   public @NotNull Map<String, Set<File>> getArtifactsByConfiguration() {
     return sourceSetModel.getConfigurationArtifacts();
+  }
+
+  @Override
+  public @NotNull Set<File> getDefaultConfigurationArtifacts() {
+    return sourceSetModel.getDefaultConfigurationArtifacts();
   }
 
   @Override

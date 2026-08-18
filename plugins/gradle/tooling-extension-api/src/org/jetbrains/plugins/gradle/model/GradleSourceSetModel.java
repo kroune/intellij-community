@@ -20,7 +20,19 @@ public interface GradleSourceSetModel extends Serializable {
 
   @NotNull List<File> getTaskArtifacts();
 
+  /**
+   * @deprecated Collected for every configuration of the project, but consumed only for the
+   * {@code "default"} configuration. Always empty in newer implementations.
+   * Use {@link #getDefaultConfigurationArtifacts()} instead.
+   */
+  @Deprecated
   @NotNull Map<String, Set<File>> getConfigurationArtifacts();
+
+  /**
+   * The artifact files of the project's {@code "default"} configuration
+   * (the main publication artifacts of the module).
+   */
+  @NotNull Set<File> getDefaultConfigurationArtifacts();
 
   @NotNull Map<String, ? extends ExternalSourceSet> getSourceSets();
 

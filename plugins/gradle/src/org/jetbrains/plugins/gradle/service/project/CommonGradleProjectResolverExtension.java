@@ -200,10 +200,7 @@ public final class CommonGradleProjectResolverExtension extends AbstractProjectR
 
         final Set<File> artifacts = FileCollectionFactory.createCanonicalFileSet();
         if ("main".equals(sourceSet.getName())) {
-          final Set<File> defaultArtifacts = externalProject.getArtifactsByConfiguration().get("default");
-          if (defaultArtifacts != null) {
-            artifacts.addAll(defaultArtifacts);
-          }
+          artifacts.addAll(externalProject.getDefaultConfigurationArtifacts());
         }
         else {
           if ("test".equals(sourceSet.getName())) {

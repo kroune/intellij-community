@@ -53,7 +53,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -81,7 +80,10 @@ public class GradleSourceSetModelBuilder extends AbstractModelBuilderService {
     sourceSetModel.setSourceCompatibility(JavaPluginUtil.getSourceCompatibility(project));
     sourceSetModel.setTargetCompatibility(JavaPluginUtil.getTargetCompatibility(project));
     sourceSetModel.setTaskArtifacts(collectProjectTaskArtifacts(project, context));
-    sourceSetModel.setConfigurationArtifacts(collectProjectConfigurationArtifacts(project, context));
+    // Per-configuration artifacts are no longer collected: only the "default" configuration
+    // was ever consumed. The legacy map stays empty; remaining consumers are logged on access.
+    sourceSetModel.setConfigurationArtifacts(Collections.emptyMap());
+    sourceSetModel.setDefaultConfigurationArtifacts(collectDefaultConfigurationArtifacts(project, context));
     sourceSetModel.setAdditionalArtifacts(collectNonSourceSetArtifacts(project, context));
     sourceSetModel.setSourceSets(collectSourceSets(project, context));
     return sourceSetModel;
@@ -186,45 +188,29 @@ public class GradleSourceSetModelBuilder extends AbstractModelBuilderService {
     return additionalArtifacts;
   }
 
-  private static @NotNull Map<String, Set<File>> collectProjectConfigurationArtifacts(
+  private static @NotNull Set<File> collectDefaultConfigurationArtifacts(
     @NotNull Project project,
     @NotNull ModelBuilderContext context
   ) {
-    Map<String, Set<File>> configurationArtifacts = new HashMap<>();
-    GradleCollectionVisitor.accept(project.getConfigurations(), new GradleCollectionVisitor<Configuration>() {
-
-      @Override
-      public void visit(Configuration element) {
-        PublishArtifactSet artifactSet = element.getArtifacts();
-        FileCollection fileCollection = artifactSet.getFiles();
-        Set<File> files = fileCollection.getFiles();
-        configurationArtifacts.put(element.getName(), new LinkedHashSet<>(files));
-      }
-
-      @Override
-      public void onFailure(Configuration element, @NotNull Exception exception) {
-        context.getMessageReporter().createMessage()
-          .withGroup(Messages.SOURCE_SET_MODEL_PROJECT_CONFIGURATION_ARTIFACT_GROUP)
-          .withTitle("Project configuration error")
-          .withText("Cannot resolve an artifact file for the project configuration" + element)
-          .withKind(Message.Kind.WARNING)
-          .withException(exception)
-          .reportMessage(project);
-      }
-
-      @Override
-      public void visitAfterAccept(Configuration element) {
-        context.getMessageReporter().createMessage()
-          .withGroup(Messages.SOURCE_SET_MODEL_SKIPPED_PROJECT_CONFIGURATION_ARTIFACT_GROUP)
-          .withTitle("Project configuration error")
-          .withText("Artifact files collecting for project configurations was finished. " +
-                    "Resolution for the configuration " + element + " will be skipped.")
-          .withInternal().withStackTrace()
-          .withKind(Message.Kind.WARNING)
-          .reportMessage(project);
-      }
-    });
-    return configurationArtifacts;
+    Configuration configuration = project.getConfigurations().findByName("default");
+    if (configuration == null) {
+      return Collections.emptySet();
+    }
+    try {
+      PublishArtifactSet artifactSet = configuration.getArtifacts();
+      FileCollection fileCollection = artifactSet.getFiles();
+      return new LinkedHashSet<>(fileCollection.getFiles());
+    }
+    catch (Exception exception) {
+      context.getMessageReporter().createMessage()
+        .withGroup(Messages.SOURCE_SET_MODEL_PROJECT_CONFIGURATION_ARTIFACT_GROUP)
+        .withTitle("Project configuration error")
+        .withText("Cannot resolve an artifact file for the project configuration " + configuration)
+        .withKind(Message.Kind.WARNING)
+        .withException(exception)
+        .reportMessage(project);
+      return Collections.emptySet();
+    }
   }
 
   private static @NotNull Collection<File> collectSourceSetArtifacts(

@@ -6,13 +6,17 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.gradle.model.DefaultExternalSourceSet;
 import org.jetbrains.plugins.gradle.model.GradleSourceSetModel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @ApiStatus.Internal
 public final class DefaultGradleSourceSetModel implements GradleSourceSetModel {
@@ -22,6 +26,7 @@ public final class DefaultGradleSourceSetModel implements GradleSourceSetModel {
   private @Nullable String targetCompatibility;
   private @NotNull List<File> taskArtifacts;
   private @NotNull Map<String, Set<File>> configurationArtifacts;
+  private @NotNull Set<File> defaultConfigurationArtifacts;
   private @NotNull Map<String, DefaultExternalSourceSet> sourceSets;
 
   private @NotNull List<File> additionalArtifacts;
@@ -32,6 +37,7 @@ public final class DefaultGradleSourceSetModel implements GradleSourceSetModel {
     targetCompatibility = null;
     taskArtifacts = new ArrayList<>();
     configurationArtifacts = new LinkedHashMap<>();
+    defaultConfigurationArtifacts = new LinkedHashSet<>();
     sourceSets = new LinkedHashMap<>();
     additionalArtifacts = new ArrayList<>(0);
   }
@@ -72,13 +78,48 @@ public final class DefaultGradleSourceSetModel implements GradleSourceSetModel {
     this.taskArtifacts = taskArtifacts;
   }
 
+  private static final Logger LOG = LoggerFactory.getLogger(DefaultGradleSourceSetModel.class);
+  private static final Set<String> REPORTED_LEGACY_ACCESS = ConcurrentHashMap.newKeySet();
+
+  /**
+   * @deprecated Always empty: per-configuration artifacts are no longer collected.
+   * Every access is logged (once per call site) to find remaining consumers.
+   */
+  @Deprecated
   @Override
   public @NotNull Map<String, Set<File>> getConfigurationArtifacts() {
+    logLegacyConfigurationArtifactsAccess();
     return configurationArtifacts;
+  }
+
+  private static void logLegacyConfigurationArtifactsAccess() {
+    StackTraceElement[] stack = new Throwable().getStackTrace();
+    for (StackTraceElement frame : stack) {
+      String className = frame.getClassName();
+      if (className.equals(DefaultGradleSourceSetModel.class.getName()) ||
+          className.equals("org.jetbrains.plugins.gradle.model.DefaultExternalProject")) {
+        continue;
+      }
+      String caller = className + "#" + frame.getMethodName() + ":" + frame.getLineNumber();
+      if (REPORTED_LEGACY_ACCESS.add(caller)) {
+        LOG.warn("Legacy configuration artifacts accessed by " + caller +
+                 " (the map is no longer collected and is always empty)", new Throwable("access stack trace"));
+      }
+      return;
+    }
   }
 
   public void setConfigurationArtifacts(@NotNull Map<String, Set<File>> configurationArtifacts) {
     this.configurationArtifacts = configurationArtifacts;
+  }
+
+  @Override
+  public @NotNull Set<File> getDefaultConfigurationArtifacts() {
+    return defaultConfigurationArtifacts;
+  }
+
+  public void setDefaultConfigurationArtifacts(@NotNull Set<File> defaultConfigurationArtifacts) {
+    this.defaultConfigurationArtifacts = defaultConfigurationArtifacts;
   }
 
   @Override

@@ -90,9 +90,20 @@ public interface ExternalProject extends Model, Serializable {
    * The artifacts per configuration.
    *
    * @return a mapping between the name of a configuration and the files associated with it.
+   * @deprecated Collected for every configuration of the project, but consumed only for the
+   * {@code "default"} configuration. Always empty in newer implementations.
+   * Use {@link #getDefaultConfigurationArtifacts()} instead.
    */
+  @Deprecated
   @NotNull
   Map<String, Set<File>> getArtifactsByConfiguration();
+
+  /**
+   * The artifact files of the project's {@code "default"} configuration
+   * (the main publication artifacts of the module).
+   */
+  @NotNull
+  Set<File> getDefaultConfigurationArtifacts();
 
   @ApiStatus.Internal
   @NotNull GradleSourceSetModel getSourceSetModel();
