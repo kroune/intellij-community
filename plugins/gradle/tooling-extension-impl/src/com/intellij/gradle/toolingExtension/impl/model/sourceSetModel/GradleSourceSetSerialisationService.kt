@@ -90,6 +90,7 @@ class GradleSourceSetSerialisationService : SerializationService<GradleSourceSet
     private const val SOURCE_SET_MODEL_TARGET_COMPATIBILITY_FIELD: String = "targetCompatibility"
     private const val SOURCE_SET_MODEL_TASK_ARTIFACTS_FIELD: String = "taskArtifacts"
     private const val SOURCE_SET_MODEL_CONFIGURATION_ARTIFACTS_FIELD: String = "configurationArtifacts"
+    private const val SOURCE_SET_MODEL_DEFAULT_CONFIGURATION_ARTIFACTS_FIELD: String = "defaultConfigurationArtifacts"
     private const val SOURCE_SET_MODEL_SOURCE_SETS_FIELD: String = "sourceSets"
     private const val SOURCE_SET_MODEL_ADDITIONAL_ARTIFACTS_FIELD: String = "additionalArtifacts"
 
@@ -123,7 +124,8 @@ class GradleSourceSetSerialisationService : SerializationService<GradleSourceSet
         writeString(writer, SOURCE_SET_MODEL_SOURCE_COMPATIBILITY_FIELD, model.sourceCompatibility)
         writeString(writer, SOURCE_SET_MODEL_TARGET_COMPATIBILITY_FIELD, model.targetCompatibility)
         writeFiles(writer, SOURCE_SET_MODEL_TASK_ARTIFACTS_FIELD, model.taskArtifacts)
-        writeConfigurationArtifacts(writer, model)
+        writeConfigurationArtifacts(writer)
+        writeFiles(writer, SOURCE_SET_MODEL_DEFAULT_CONFIGURATION_ARTIFACTS_FIELD, model.defaultConfigurationArtifacts)
         writeSourceSets(writer, context, model)
         writeFiles(writer, SOURCE_SET_MODEL_ADDITIONAL_ARTIFACTS_FIELD, model.additionalArtifacts)
       }
@@ -142,14 +144,20 @@ class GradleSourceSetSerialisationService : SerializationService<GradleSourceSet
           targetCompatibility = readString(reader, SOURCE_SET_MODEL_TARGET_COMPATIBILITY_FIELD)
           taskArtifacts = readFileList(reader, SOURCE_SET_MODEL_TASK_ARTIFACTS_FIELD)
           configurationArtifacts = readConfigurationArtifacts(reader)
+          defaultConfigurationArtifacts = readFileSet(reader, SOURCE_SET_MODEL_DEFAULT_CONFIGURATION_ARTIFACTS_FIELD)
           sourceSets = readSourceSets(reader, context)
           additionalArtifacts = readFileList(reader, SOURCE_SET_MODEL_ADDITIONAL_ARTIFACTS_FIELD)
         }
       }
     }
 
-    private fun writeConfigurationArtifacts(writer: IonWriter, sourceSetModel: GradleSourceSetModel) {
-      writeMap(writer, SOURCE_SET_MODEL_CONFIGURATION_ARTIFACTS_FIELD, sourceSetModel.configurationArtifacts,
+    /**
+     * Per-configuration artifacts are no longer collected (only the "default" configuration
+     * was ever consumed, see [GradleSourceSetModel.getDefaultConfigurationArtifacts]).
+     * The legacy field stays in the format, always as an empty map.
+     */
+    private fun writeConfigurationArtifacts(writer: IonWriter) {
+      writeMap(writer, SOURCE_SET_MODEL_CONFIGURATION_ARTIFACTS_FIELD, emptyMap<String, Set<File>>(),
                { writeString(writer, MAP_KEY_FIELD, it) },
                { writeFiles(writer, MAP_VALUE_FIELD, it) })
     }
