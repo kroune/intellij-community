@@ -3,6 +3,7 @@ package com.intellij.gradle.toolingExtension.impl.model.warmUp;
 
 import com.intellij.gradle.toolingExtension.impl.modelBuilder.Messages;
 import com.intellij.gradle.toolingExtension.impl.util.GradleResultUtil;
+import com.intellij.gradle.toolingExtension.impl.util.GradleTaskUtil;
 import com.intellij.gradle.toolingExtension.util.GradleVersionUtil;
 import org.gradle.api.Project;
 import org.gradle.api.internal.tasks.DefaultTaskContainer;
@@ -25,6 +26,9 @@ public class GradleTaskWarmUpService extends AbstractModelBuilderService {
 
   @Override
   public Object buildAll(@NotNull String modelName, @NotNull Project project, @NotNull ModelBuilderContext context) {
+    if (GradleTaskUtil.isDoNotBuildTasks(project)) {
+      return null;
+    }
     GradleResultUtil.runOrRetryOnce(() -> {
       if (TASKS_REFRESH_REQUIRED) {
         refreshProjectTasks(project);

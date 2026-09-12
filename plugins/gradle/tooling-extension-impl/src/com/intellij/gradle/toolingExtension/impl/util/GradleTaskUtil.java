@@ -3,6 +3,7 @@ package com.intellij.gradle.toolingExtension.impl.util;
 
 import com.intellij.gradle.toolingExtension.util.GradleReflectionUtil;
 import com.intellij.gradle.toolingExtension.util.GradleVersionUtil;
+import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.internal.DynamicObjectAware;
 import org.gradle.api.internal.TaskInternal;
@@ -19,8 +20,23 @@ import java.io.File;
 
 public final class GradleTaskUtil {
 
+  private static final @NotNull String DO_NOT_BUILD_TASKS_PROPERTY = "idea.gradle.do.not.build.tasks";
+
   private static final boolean is49OrBetter = GradleVersionUtil.isCurrentGradleAtLeast("4.9");
   private static final boolean is51OrBetter = GradleVersionUtil.isCurrentGradleAtLeast("5.1");
+  private static final boolean is81OrBetter = GradleVersionUtil.isCurrentGradleAtLeast("8.1");
+
+  /**
+   * Checks whether the IDE asked to skip the Gradle task model during the sync.
+   * The IDE sets the property when it does not need the Gradle task list.
+   * The sync can then skip the expensive task realization.
+   */
+  public static boolean isDoNotBuildTasks(@NotNull Project project) {
+    Object value = is81OrBetter
+                   ? project.getProviders().gradleProperty(DO_NOT_BUILD_TASKS_PROPERTY).getOrNull()
+                   : project.getProperties().get(DO_NOT_BUILD_TASKS_PROPERTY);
+    return Boolean.parseBoolean(String.valueOf(value).trim());
+  }
 
   private static @Nullable Object getProperty(@NotNull Task task, @NotNull String propertyName) {
     ExtensionContainer extensions = task.getExtensions();
