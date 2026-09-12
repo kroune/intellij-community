@@ -25,8 +25,22 @@ class GradleTaskModelBuilder : AbstractModelBuilderService() {
 
   override fun buildAll(modelName: String, project: Project, context: ModelBuilderContext): Any {
     val taskModel = DefaultGradleTaskModel()
-    taskModel.tasks = collectTasks(project)
+    taskModel.tasks =
+      if (GradleTaskUtil.isDoNotBuildTasks(project)) getTestTasks(project)
+      else collectTasks(project)
     return taskModel
+  }
+
+  private fun getTestTasks(project: Project): Map<String, DefaultExternalTask> {
+    val result = HashMap<String, DefaultExternalTask>()
+    for (taskName in project.tasks.withType(AbstractTestTask::class.java).names) {
+      val externalTask = DefaultExternalTask()
+      externalTask.name = taskName
+      externalTask.qName = if (project.path == ":") ":$taskName" else "${project.path}:$taskName"
+      externalTask.isTest = true
+      result[externalTask.name] = externalTask
+    }
+    return result
   }
 
   private fun collectTasks(project: Project): Map<String, DefaultExternalTask> {
